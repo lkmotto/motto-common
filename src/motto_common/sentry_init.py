@@ -32,7 +32,6 @@ import sentry_sdk
 DEFAULT_HOST = "northflank"
 
 P = ParamSpec("P")
-R_co = object  # TypeVar-like placeholder — replaced by actual R in capture_main_loop
 
 
 def _git_sha() -> str:
