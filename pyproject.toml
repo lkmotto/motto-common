@@ -81,4 +81,11 @@ pythonpath = ["src"]
 source = ["src/motto_common"]
 
 [tool.coverage.report]
+fail_under = 50
 show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
