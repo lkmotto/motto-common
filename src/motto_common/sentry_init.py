@@ -47,9 +47,7 @@ def _git_sha() -> str:
         return sha
     try:
         return (
-            subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL
-            )
+            subprocess.check_output(["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL)
             .decode()
             .strip()
         )
