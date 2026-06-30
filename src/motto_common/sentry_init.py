@@ -16,6 +16,9 @@ Environment:
     DEPLOY_ENV                 - environment name, defaults to ``prd``.
     DEPLOY_HOST                - overrides the default host tag.
     SENTRY_TRACES_SAMPLE_RATE  - traces sample rate, defaults to ``0.1``.
+    SENTRY_PROFILING_ENABLED   - opt-in continuous profiling (``1``, ``true``,
+                                 or ``yes``); disabled by default.
+    SENTRY_PROFILES_SAMPLE_RATE - profiling sample rate, defaults to ``0.1``.
     GIT_SHA / RELEASE_SHA      - explicit release SHA; otherwise read from git.
 """
 
@@ -28,8 +31,11 @@ from collections.abc import Callable
 from typing import ParamSpec
 
 import sentry_sdk
+import sentry_sdk.profiler
 
 DEFAULT_HOST = "northflank"
+
+_PROFILING_TRUTHY = frozenset({"1", "true", "yes", "on", "enabled"})
 
 P = ParamSpec("P")
 
@@ -72,12 +78,25 @@ def init_sentry(agent_name: str, host: str | None = None) -> bool:
     if not dsn:
         return False
 
-    sentry_sdk.init(
-        dsn=dsn,
-        environment=os.getenv("DEPLOY_ENV", "prd"),
-        release=_git_sha(),
-        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
-    )
+    init_kwargs: dict[str, object] = {
+        "dsn": dsn,
+        "environment": os.getenv("DEPLOY_ENV", "prd"),
+        "release": _git_sha(),
+        "traces_sample_rate": float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+    }
+
+    # Opt-in continuous profiling via SENTRY_PROFILING_ENABLED.
+    # When enabled, ``sentry_sdk.profiler`` starts a background profiler
+    # that periodically captures call stacks and attaches them to
+    # transactions, giving flame-graph visibility into production
+    # performance without manual instrumentation.
+    profiling_enabled = os.getenv("SENTRY_PROFILING_ENABLED", "").lower()
+    if profiling_enabled in _PROFILING_TRUTHY:
+        init_kwargs["profiles_sample_rate"] = float(
+            os.getenv("SENTRY_PROFILES_SAMPLE_RATE", "0.1")
+        )
+
+    sentry_sdk.init(**init_kwargs)  # type: ignore[arg-type]
     sentry_sdk.set_tag("agent", agent_name)
     sentry_sdk.set_tag("host", host or os.getenv("DEPLOY_HOST", DEFAULT_HOST))
     return True

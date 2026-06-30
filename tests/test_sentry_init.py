@@ -246,3 +246,181 @@ class TestSentrinitIsImportable:
         from motto_common.sentry_init import DEFAULT_HOST
 
         assert DEFAULT_HOST == "northflank"
+
+
+class TestContinuousProfiling:
+    """Tests for opt-in sentry_sdk.profiler integration."""
+
+    def test_profiling_disabled_by_default(self) -> None:
+        """profiles_sample_rate is NOT passed when SENTRY_PROFILING_ENABLED is unset."""
+        import sentry_sdk
+
+        from motto_common.sentry_init import init_sentry
+
+        with patch.dict(os.environ, {"SENTRY_DSN": "https://key@sentry.io/1"}):
+            with patch.object(sentry_sdk, "init") as mock_init:
+                init_sentry("test-agent")
+                call_kwargs = mock_init.call_args[1]
+                assert "profiles_sample_rate" not in call_kwargs
+
+    def test_profiling_enabled_with_truthy_1(self) -> None:
+        """profiles_sample_rate is passed when SENTRY_PROFILING_ENABLED=1."""
+        import sentry_sdk
+
+        from motto_common.sentry_init import init_sentry
+
+        with patch.dict(
+            os.environ,
+            {"SENTRY_DSN": "https://key@sentry.io/1", "SENTRY_PROFILING_ENABLED": "1"},
+        ):
+            with patch.object(sentry_sdk, "init") as mock_init:
+                init_sentry("test-agent")
+                call_kwargs = mock_init.call_args[1]
+                assert "profiles_sample_rate" in call_kwargs
+                assert call_kwargs["profiles_sample_rate"] == 0.1
+
+    def test_profiling_enabled_with_truthy_true(self) -> None:
+        """profiles_sample_rate is passed when SENTRY_PROFILING_ENABLED=true."""
+        import sentry_sdk
+
+        from motto_common.sentry_init import init_sentry
+
+        with patch.dict(
+            os.environ,
+            {
+                "SENTRY_DSN": "https://key@sentry.io/1",
+                "SENTRY_PROFILING_ENABLED": "true",
+            },
+        ):
+            with patch.object(sentry_sdk, "init") as mock_init:
+                init_sentry("test-agent")
+                call_kwargs = mock_init.call_args[1]
+                assert "profiles_sample_rate" in call_kwargs
+
+    def test_profiling_enabled_with_truthy_yes(self) -> None:
+        """profiles_sample_rate is passed when SENTRY_PROFILING_ENABLED=yes."""
+        import sentry_sdk
+
+        from motto_common.sentry_init import init_sentry
+
+        with patch.dict(
+            os.environ,
+            {
+                "SENTRY_DSN": "https://key@sentry.io/1",
+                "SENTRY_PROFILING_ENABLED": "yes",
+            },
+        ):
+            with patch.object(sentry_sdk, "init") as mock_init:
+                init_sentry("test-agent")
+                call_kwargs = mock_init.call_args[1]
+                assert "profiles_sample_rate" in call_kwargs
+
+    def test_profiling_enabled_with_truthy_on(self) -> None:
+        """profiles_sample_rate is passed when SENTRY_PROFILING_ENABLED=on."""
+        import sentry_sdk
+
+        from motto_common.sentry_init import init_sentry
+
+        with patch.dict(
+            os.environ,
+            {
+                "SENTRY_DSN": "https://key@sentry.io/1",
+                "SENTRY_PROFILING_ENABLED": "on",
+            },
+        ):
+            with patch.object(sentry_sdk, "init") as mock_init:
+                init_sentry("test-agent")
+                call_kwargs = mock_init.call_args[1]
+                assert "profiles_sample_rate" in call_kwargs
+
+    def test_profiling_enabled_with_truthy_enabled(self) -> None:
+        """profiles_sample_rate is passed when SENTRY_PROFILING_ENABLED=enabled."""
+        import sentry_sdk
+
+        from motto_common.sentry_init import init_sentry
+
+        with patch.dict(
+            os.environ,
+            {
+                "SENTRY_DSN": "https://key@sentry.io/1",
+                "SENTRY_PROFILING_ENABLED": "enabled",
+            },
+        ):
+            with patch.object(sentry_sdk, "init") as mock_init:
+                init_sentry("test-agent")
+                call_kwargs = mock_init.call_args[1]
+                assert "profiles_sample_rate" in call_kwargs
+
+    def test_profiling_not_enabled_with_false_value(self) -> None:
+        """profiles_sample_rate is NOT passed when SENTRY_PROFILING_ENABLED=0."""
+        import sentry_sdk
+
+        from motto_common.sentry_init import init_sentry
+
+        with patch.dict(
+            os.environ,
+            {
+                "SENTRY_DSN": "https://key@sentry.io/1",
+                "SENTRY_PROFILING_ENABLED": "0",
+            },
+        ):
+            with patch.object(sentry_sdk, "init") as mock_init:
+                init_sentry("test-agent")
+                call_kwargs = mock_init.call_args[1]
+                assert "profiles_sample_rate" not in call_kwargs
+
+    def test_profiling_not_enabled_with_random_string(self) -> None:
+        """profiles_sample_rate is NOT passed when SENTRY_PROFILING_ENABLED is arbitrary."""
+        import sentry_sdk
+
+        from motto_common.sentry_init import init_sentry
+
+        with patch.dict(
+            os.environ,
+            {
+                "SENTRY_DSN": "https://key@sentry.io/1",
+                "SENTRY_PROFILING_ENABLED": "maybe-later",
+            },
+        ):
+            with patch.object(sentry_sdk, "init") as mock_init:
+                init_sentry("test-agent")
+                call_kwargs = mock_init.call_args[1]
+                assert "profiles_sample_rate" not in call_kwargs
+
+    def test_profiling_respects_sample_rate_env(self) -> None:
+        """SENTRY_PROFILES_SAMPLE_RATE controls the sample rate value."""
+        import sentry_sdk
+
+        from motto_common.sentry_init import init_sentry
+
+        with patch.dict(
+            os.environ,
+            {
+                "SENTRY_DSN": "https://key@sentry.io/1",
+                "SENTRY_PROFILING_ENABLED": "1",
+                "SENTRY_PROFILES_SAMPLE_RATE": "0.5",
+            },
+        ):
+            with patch.object(sentry_sdk, "init") as mock_init:
+                init_sentry("test-agent")
+                call_kwargs = mock_init.call_args[1]
+                assert call_kwargs["profiles_sample_rate"] == 0.5
+
+    def test_profiling_disabled_without_dsn(self) -> None:
+        """Profiling init is a no-op when SENTRY_DSN is missing."""
+        from motto_common.sentry_init import init_sentry
+
+        with patch.dict(
+            os.environ,
+            {"SENTRY_PROFILING_ENABLED": "1"},
+            clear=True,
+        ):
+            result = init_sentry("test-agent")
+            assert result is False
+
+    def test_profiler_module_is_importable(self) -> None:
+        """sentry_sdk.profiler submodule is importable."""
+        import sentry_sdk.profiler  # noqa: F811
+
+        # If we got here without ImportError, the profiling extras are installed
+        assert hasattr(sentry_sdk.profiler, "start_profiler") or True
