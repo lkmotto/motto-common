@@ -167,6 +167,34 @@ def _install_motto_common(repo_dir: Path, motto_common_path: Path) -> None:
         )
 
 
+def _sync_consumer_deps(repo_dir: Path) -> None:
+    """Install the consumer repo's own dependencies after motto-common is added.
+
+    Uses uv sync for uv-managed projects, pip install -e . for pip-managed
+    pyproject.toml projects, and pip install -r for requirements.txt projects.
+    """
+    pyproject = repo_dir / "pyproject.toml"
+    reqs_txt = repo_dir / "requirements.txt"
+
+    if pyproject.exists():
+        if shutil.which("uv"):
+            # uv sync resolves and installs all dependencies including dev deps,
+            # and installs the package itself in editable mode.
+            _run(["uv", "sync"], cwd=repo_dir)
+        else:
+            # pip install -e . reads [project].dependencies and optionally
+            # [project.optional-dependencies] from pyproject.toml.
+            _run(
+                [sys.executable, "-m", "pip", "install", "-e", "."],
+                cwd=repo_dir,
+            )
+    elif reqs_txt.exists():
+        _run(
+            [sys.executable, "-m", "pip", "install", "-r", str(reqs_txt)],
+            cwd=repo_dir,
+        )
+
+
 def _run_tests(repo_dir: Path) -> tuple[int, str, str]:
     """Run the consumer repo's test suite.
 
@@ -250,7 +278,11 @@ def main() -> int:
             print(f"  [install] Installing motto-common into {repo_dir.name} ...")
             _install_motto_common(repo_dir, motto_common_path)
 
-            # Step 3: Run tests
+            # Step 3: Sync consumer repo dependencies
+            print(f"  [deps] Installing dependencies for {repo_dir.name} ...")
+            _sync_consumer_deps(repo_dir)
+
+            # Step 4: Run tests
             print(f"  [test] Running tests for {repo_dir.name} ...")
             exit_code, stdout, stderr = _run_tests(repo_dir)
 
