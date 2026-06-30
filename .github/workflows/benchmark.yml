@@ -1,0 +1,159 @@
+name: Performance Benchmark
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "src/motto_common/**"
+      - "tests/benchmarks/**"
+      - "pyproject.toml"
+      - "uv.lock"
+  push:
+    branches: [main, master]
+    paths:
+      - "src/motto_common/**"
+      - "tests/benchmarks/**"
+      - "pyproject.toml"
+      - "uv.lock"
+  schedule:
+    - cron: "0 9 * * 1"  # Every Monday at 9 AM UTC
+  workflow_dispatch:       # Manual trigger
+
+permissions:
+  contents: write          # To commit updated baseline
+  pull-requests: write     # To comment on PRs
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.12"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for git operations
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run benchmarks (with comparison)
+        run: |
+          # Determine if we have a stored baseline to compare against
+          if [ -f benchmarks/baseline.json ]; then
+            echo "Comparing against stored baseline..."
+            uv run pytest tests/benchmarks/ \
+              --benchmark-only \
+              --benchmark-json=benchmark-results.json \
+              --benchmark-compare \
+              --benchmark-compare-fail=min:10% \
+              --benchmark-name=short \
+              -q 2>&1 | tee benchmark-output.txt
+            BENCH_EXIT=$?
+          else
+            echo "No baseline found. Generating initial baseline..."
+            uv run pytest tests/benchmarks/ \
+              --benchmark-only \
+              --benchmark-json=benchmark-results.json \
+              --benchmark-name=short \
+              -q 2>&1 | tee benchmark-output.txt
+            BENCH_EXIT=0
+          fi
+
+          # Always save the results for artifact upload
+          if [ -f benchmark-results.json ]; then
+            cp benchmark-results.json benchmarks/baseline.json
+          fi
+
+          exit $BENCH_EXIT
+
+      - name: Report benchmark results
+        if: always()
+        run: |
+          if [ -f benchmark-output.txt ]; then
+            {
+              echo "## Performance Benchmark Results"
+              echo ""
+              echo '```'
+              cat benchmark-output.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-py${{ matrix.python-version }}
+          path: |
+            benchmark-results.json
+            benchmark-output.txt
+          retention-days: 90
+
+      - name: Upload baseline as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-baseline
+          path: benchmarks/baseline.json
+          retention-days: 90
+
+      - name: Commit updated baseline (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -f benchmarks/baseline.json ]; then
+            git add benchmarks/baseline.json
+            if git diff --cached --quiet; then
+              echo "No baseline changes to commit."
+            else
+              git commit -m "chore(bench): update performance baseline [skip ci]"
+              git push origin HEAD:${{ github.ref_name }}
+            fi
+          fi
+
+      - name: Comment benchmark comparison on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = '## ⏱ Performance Benchmark Results\n\n';
+
+            if (fs.existsSync('benchmark-output.txt')) {
+              const output = fs.readFileSync('benchmark-output.txt', 'utf8');
+              body += '```\n' + output + '\n```\n';
+            } else {
+              body += 'No benchmark output generated.\n';
+            }
+
+            // Check for regression keywords
+            if (fs.existsSync('benchmark-output.txt')) {
+              const output = fs.readFileSync('benchmark-output.txt', 'utf8');
+              if (output.includes('Performance has regressed') || output.includes('slower')) {
+                body += '\n⚠️ **Performance regression detected!** Review the benchmark results above.\n';
+              } else if (output.includes('faster')) {
+                body += '\n✅ Performance improved!\n';
+              } else {
+                body += '\n✅ No performance regression detected.\n';
+              }
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

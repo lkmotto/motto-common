@@ -1,0 +1,120 @@
+name: Cross-Consumer Regression Test
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "src/motto_common/**"
+      - "pyproject.toml"
+      - "uv.lock"
+  schedule:
+    - cron: "0 8 * * 1"  # Every Monday at 8 AM UTC
+  workflow_dispatch:       # Manual trigger
+
+permissions:
+  contents: read
+
+jobs:
+  cross-consumer-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        consumer:
+          - lkmotto/motto-director
+          - lkmotto/motto-appraisal-pipeline
+          - lkmotto/motto-sdr-agent
+    steps:
+      - name: Checkout motto-common
+        uses: actions/checkout@v4
+        with:
+          path: motto-common
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install motto-common dependencies
+        working-directory: motto-common
+        run: uv sync
+
+      - name: Checkout consumer repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.consumer }}
+          path: ${{ matrix.consumer }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up consumer Python
+        working-directory: ${{ matrix.consumer }}
+        run: |
+          if [ -f pyproject.toml ] || [ -f requirements.txt ]; then
+            python -m pip install --upgrade pip
+          fi
+
+      - name: Install motto-common into consumer
+        working-directory: ${{ matrix.consumer }}
+        run: |
+          # Install motto-common from the checked-out source
+          pip install -e "${{ github.workspace }}/motto-common"
+
+      - name: Install consumer test dependencies
+        working-directory: ${{ matrix.consumer }}
+        run: |
+          if [ -f pyproject.toml ]; then
+            # Try uv first
+            if command -v uv &> /dev/null; then
+              uv sync || pip install -e ".[dev]"
+            else
+              pip install -e ".[dev]"
+            fi
+          elif [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+          pip install pytest
+
+      - name: Run consumer tests
+        working-directory: ${{ matrix.consumer }}
+        run: |
+          if [ -f pyproject.toml ] && command -v uv &> /dev/null; then
+            uv run pytest -q --tb=short 2>&1 | tee test-results.txt
+          else
+            python -m pytest -q --tb=short 2>&1 | tee test-results.txt
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.consumer }}
+          path: ${{ matrix.consumer }}/test-results.txt
+          retention-days: 30
+
+  aggregate-report:
+    needs: cross-consumer-test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          merge-multiple: true
+
+      - name: Aggregate report
+        run: |
+          echo "## Cross-Consumer Regression Test Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          for f in test-results-*; do
+            if [ -f "$f" ]; then
+              echo "### Results: $f" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              cat "$f" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
