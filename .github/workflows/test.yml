@@ -5,6 +5,8 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  schedule:
+    - cron: "0 6 * * *"
 
 jobs:
   pre-commit:
@@ -76,4 +78,4 @@ jobs:
         run: uv run mypy .
 
       - name: Test
-        run: uv run pytest
+        run: uv run pytest tests/ integration_tests/
