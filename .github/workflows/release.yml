@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Semantic Release - determine version and update CHANGELOG
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          uvx --from "python-semantic-release" semantic-release version --no-vcs-release --skip-build || true
+          # Generate changelog section for this release from git log
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            LOG_RANGE="${PREV_TAG}..HEAD"
+          else
+            LOG_RANGE="HEAD"
+          fi
+          echo "## [${TAG_NAME#v}] - $(date +%Y-%m-%d)" > /tmp/changelog_section.md
+          echo "" >> /tmp/changelog_section.md
+          git log "$LOG_RANGE" --pretty=format:"- %s (%h)" --no-merges >> /tmp/changelog_section.md
+          echo "" >> /tmp/changelog_section.md
+          # Prepend new version to CHANGELOG.md
+          if [ -f CHANGELOG.md ]; then
+            awk -v section="$(cat /tmp/changelog_section.md)" '
+              /^## \[/ && !inserted { print section; print ""; inserted=1 }
+              { print }
+            ' CHANGELOG.md > /tmp/updated_changelog.md && mv /tmp/updated_changelog.md CHANGELOG.md
+          fi
+
+      - name: Build package
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*

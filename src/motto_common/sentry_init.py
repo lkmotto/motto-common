@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import functools
 import os
-import subprocess
+import subprocess  # nosec B404
 from collections.abc import Callable
 from typing import ParamSpec
 
@@ -46,7 +46,9 @@ def _git_sha() -> str:
         return sha
     try:
         return (
-            subprocess.check_output(["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL)
+            subprocess.check_output(  # nosec B603 B607
+                ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL
+            )
             .decode()
             .strip()
         )
