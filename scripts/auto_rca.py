@@ -142,9 +142,7 @@ def _save_state(tracked_issues: set[str]) -> None:
     os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
     with open(STATE_FILE, "w") as fh:
         now_iso = _dt.datetime.now(tz=_dt.UTC).isoformat()
-        json.dump(
-            {"tracked_issues": sorted(tracked_issues), "updated": now_iso}, fh, indent=2
-        )
+        json.dump({"tracked_issues": sorted(tracked_issues), "updated": now_iso}, fh, indent=2)
 
 
 def _list_existing_github_issue_titles() -> set[str]:
@@ -158,8 +156,7 @@ def _list_existing_github_issue_titles() -> set[str]:
     while True:
         issues = _github_request(
             "GET",
-            f"/repos/{repo}/issues"
-            f"?labels={RCA_ISSUE_LABEL}&state=open&per_page=100&page={page}",
+            f"/repos/{repo}/issues?labels={RCA_ISSUE_LABEL}&state=open&per_page=100&page={page}",
         )
         if not isinstance(issues, list) or not issues:
             break
@@ -289,9 +286,7 @@ def _build_issue_body(issue: dict[str, typing.Any], org: str, project: str) -> s
     return "\n".join(lines)
 
 
-def _extract_stack_trace(
-    issue: dict[str, typing.Any], org: str, project: str
-) -> str:
+def _extract_stack_trace(issue: dict[str, typing.Any], org: str, project: str) -> str:
     """Try to pull a stack trace excerpt from the issue's latest event."""
     issue_id = issue.get("id", "")
     if not issue_id:

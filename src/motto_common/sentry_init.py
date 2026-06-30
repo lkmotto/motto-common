@@ -92,9 +92,7 @@ def init_sentry(agent_name: str, host: str | None = None) -> bool:
     # performance without manual instrumentation.
     profiling_enabled = os.getenv("SENTRY_PROFILING_ENABLED", "").lower()
     if profiling_enabled in _PROFILING_TRUTHY:
-        init_kwargs["profiles_sample_rate"] = float(
-            os.getenv("SENTRY_PROFILES_SAMPLE_RATE", "0.1")
-        )
+        init_kwargs["profiles_sample_rate"] = float(os.getenv("SENTRY_PROFILES_SAMPLE_RATE", "0.1"))
 
     sentry_sdk.init(**init_kwargs)  # type: ignore[arg-type]
     sentry_sdk.set_tag("agent", agent_name)

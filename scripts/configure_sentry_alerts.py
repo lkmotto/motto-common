@@ -113,9 +113,7 @@ ALERT_RULES = [
 # ---------------------------------------------------------------------------
 
 
-def _request(
-    method: str, path: str, data: dict[str, typing.Any] | None = None
-) -> typing.Any:
+def _request(method: str, path: str, data: dict[str, typing.Any] | None = None) -> typing.Any:
     """Send an authenticated request to the Sentry API."""
     token = os.getenv("SENTRY_AUTH_TOKEN")
     if not token:
@@ -156,17 +154,12 @@ def main() -> None:
     project = os.getenv("SENTRY_PROJECT")
 
     if not org or not project:
-        print(
-            "ERROR: SENTRY_ORG and SENTRY_PROJECT environment variables "
-            "are required."
-        )
+        print("ERROR: SENTRY_ORG and SENTRY_PROJECT environment variables are required.")
         sys.exit(1)
 
     # Fetch existing rules so we can be idempotent
     print(f"Fetching existing alert rules for {org}/{project} ...")
-    existing: list[dict[str, typing.Any]] = _request(
-        "GET", f"/projects/{org}/{project}/rules/"
-    )
+    existing: list[dict[str, typing.Any]] = _request("GET", f"/projects/{org}/{project}/rules/")
     existing_labels = {r.get("label", "") for r in existing}
 
     created = 0

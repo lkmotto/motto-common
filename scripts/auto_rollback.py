@@ -73,9 +73,7 @@ HEALTH_LOOKBACK_MINUTES = int(os.getenv("ROLLBACK_LOOKBACK_MINUTES", "60"))
 # ---------------------------------------------------------------------------
 
 
-def _sentry_request(
-    method: str, path: str, data: dict[str, object] | None = None
-) -> typing.Any:
+def _sentry_request(method: str, path: str, data: dict[str, object] | None = None) -> typing.Any:
     """Send an authenticated request to the Sentry API."""
     token = os.getenv("SENTRY_AUTH_TOKEN")
     if not token:
@@ -104,7 +102,9 @@ def _sentry_request(
 
 
 def _github_request(
-    method: str, path: str, data: dict[str, object] | None = None,
+    method: str,
+    path: str,
+    data: dict[str, object] | None = None,
     token: str | None = None,
 ) -> typing.Any:
     """Send an authenticated request to the GitHub API."""
@@ -163,9 +163,7 @@ def _fetch_latest_release(org: str, project: str) -> str | None:
     return releases[0].get("version")
 
 
-def _fetch_release_health(
-    org: str, project: str, release_version: str
-) -> ReleaseHealth:
+def _fetch_release_health(org: str, project: str, release_version: str) -> ReleaseHealth:
     """Query Sentry Release Health sessions data for the given release.
 
     Uses the sessions API to retrieve session counts (healthy, crashed,
@@ -188,9 +186,8 @@ def _fetch_release_health(
 
     sessions_result = _sentry_request(
         "GET",
-        f"/organizations/{org}/sessions/?" + "&".join(
-            f"{k}={v}" for k, v in params.items() if isinstance(v, str)
-        ),
+        f"/organizations/{org}/sessions/?"
+        + "&".join(f"{k}={v}" for k, v in params.items() if isinstance(v, str)),
     )
 
     # Also query the issue count for an error-rate estimate
@@ -231,9 +228,7 @@ def _compute_health(
     # Parse issue/error count
     error_count = 0
     if isinstance(issues_data, list):
-        error_count = sum(
-            int(i.get("count", 0)) for i in issues_data
-        )
+        error_count = sum(int(i.get("count", 0)) for i in issues_data)
 
     # Compute metrics
     crash_free = total - crashed
@@ -264,9 +259,7 @@ def _compute_health(
 # ---------------------------------------------------------------------------
 
 
-def _file_rollback_issue(
-    health: ReleaseHealth, org: str, project: str
-) -> None:
+def _file_rollback_issue(health: ReleaseHealth, org: str, project: str) -> None:
     """Create a GitHub issue signalling that rollback is needed."""
     repo = os.getenv("GITHUB_REPOSITORY", "")
     if not repo:
@@ -405,8 +398,7 @@ def _post_slack_alert(health: ReleaseHealth, org: str, project: str) -> bool:
                     {
                         "title": "Threshold",
                         "value": (
-                            f"CF \u2265 {CRASH_FREE_THRESHOLD}%, "
-                            f"ER \u2264 {ERROR_RATE_THRESHOLD}"
+                            f"CF \u2265 {CRASH_FREE_THRESHOLD}%, ER \u2264 {ERROR_RATE_THRESHOLD}"
                         ),
                         "short": True,
                     },

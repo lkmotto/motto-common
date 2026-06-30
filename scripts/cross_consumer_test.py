@@ -197,7 +197,8 @@ def main() -> int:
         help="Directory to clone consumer repos into (default: temp dir)",
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Print full test output for each consumer",
     )
